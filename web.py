@@ -11,6 +11,7 @@ def index():
     link += "<a href=/me>關於我</a><hr>"
     link += "<a href=/welcome?u=珮芹&d=靜宜資管&c=資訊管理導論>Get傳值</a><hr>"
     link += "<a href=/account>網頁表單傳值</a><hr>"
+    link += "<a href=/penny>次方與根號計算</a><hr>"
     return link
 
 @app.route("/mis")
@@ -43,7 +44,9 @@ def account():
     else:
         return render_template("account.html")
 
-
+@app.route("/penny")
+def penny():
+    return render_template("02.html")
 
 
 if __name__ == "__main__":

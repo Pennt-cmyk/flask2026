@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h2>次方與根號計算</h2>
+  
+  <div>x: <input type="number" id="x"></div><br>
+  
+  <div>運算：
+    <select id="opt">
+      <option value="pow">∧ (次方)</option>
+      <option value="root">√ (根號)</option>
+    </select>
+  </div><br>
+  
+  <div>y: <input type="number" id="y"></div><br>
+  
+  <button onclick="cal()">計算</button>
+  <h3 id="res"></h3>
+
+  <script>
+    function cal() {
+      let x = parseFloat(document.getElementById('x').value);
+      let y = parseFloat(document.getElementById('y').value);
+      let opt = document.getElementById('opt').value;
+      let out = document.getElementById('res');
+
+      if (opt === "pow") {
+        out.innerText = x ** y;
+      } else {
+        out.innerText = (y === 0) ? "不能開0次方根" : x ** (1/y);
+      }
+    }
+  </script>
+</body>
+</html>
