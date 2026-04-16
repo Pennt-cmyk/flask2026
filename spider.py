@@ -7,7 +7,11 @@ Data.encoding = "utf-8"
 sp = BeautifulSoup(Data.text,"html.parser")
 result = sp.select(".team-box a")
 
-for i in result:
-	print(i.text, i.get("href"))
-	print()
+all_data = ""
 
+for i in result:
+    title = i.text.strip()
+    link = i.get("href")    
+    if title and link:
+        all_data += title + " " + link + "<br>"
+print(all_data.replace("<br>", "\n"))
