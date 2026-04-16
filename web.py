@@ -31,7 +31,63 @@ def index():
     link += "<a href=/account>網頁表單傳值</a><hr>"
     link += "<a href=/penny>次方與根號計算</a><hr>"
     link += "<br><a href=/read>讀取Firestore資料</a><hr>"
+    link += "<br><a href=/read2>讀取Firestore資料(根據姓名關鍵字:楊)</a><hr>"
+    link += "<br><a href=/spider>爬取資料</a><hr>"
     return link
+
+
+import requests
+from bs4 import BeautifulSoup
+from flask import Flask
+
+# ... 你的 app 定義 ...
+
+@app.route("/spider")
+def spider():
+    final_output = "" 
+    url = "https://www1.pu.edu.tw/~tcyang/course.html"
+    
+    try:
+        requests.packages.urllib3.disable_warnings()
+        response = requests.get(url, verify=False)
+        response.encoding = "utf-8" # 確保中文不會變成亂碼
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # 3. 選取目標：根據你的 CSS 選擇器找出所有連結
+        links = soup.select(".team-box a")
+        
+        # 4. 迴圈整理資料
+        for item in links:
+            text = item.text.strip() # 取得文字並去掉空格
+            href = item.get("href")  # 取得連結
+            # 使用 + 號連接字串，並加上 <br> 讓網頁換行
+            final_output += f"連結：{href}<br>"
+            
+        # 如果沒抓到東西，給個提示
+        if not final_output:
+            final_output = "已連線，但找不到指定的 CSS 標籤 (.team-box a)"
+            
+    except Exception as e:
+        # 萬一發生其他錯誤（例如斷網），會顯示在網頁上方便除錯
+        final_output = f"發生錯誤：{str(e)}"
+        
+    return final_output
+
+
+@app.route("/read1")
+def read1():
+    Result = ""
+    keyword = "楊"
+    db = firestore.client()
+    collection_ref = db.collection("靜宜資管")    
+    docs = collection_ref.get()    
+    for doc in docs:
+        teacher = doc.to_dict()
+        if keyword in teacher["name"]:         
+            Result += str(teacher) + "<br>"  
+    return Result
+
 
 @app.route("/read")
 def read():
@@ -73,6 +129,40 @@ def account():
         return result
     else:
         return render_template("account.html")
+
+@app.route("/read2", methods=["GET", "POST"])
+def read2():
+    # 網頁標題與查詢表單
+    Result = "<h1>靜宜資管老師查詢</h1>"
+    Result += '<form action="/read2" method="post">'
+    Result += '請輸入老師姓名關鍵字：<input type="text" name="keyword">'
+    Result += '<button type="submit">查詢</button></form><br>'
+
+    if request.method == "POST":
+        keyword = request.form.get("keyword")
+        Result += f"<h3>查詢結果 (關鍵字: {keyword}):</h3>"
+       
+        db = firestore.client()
+        collection_ref = db.collection("靜宜資管")
+        docs = collection_ref.get()
+       
+        found = False
+        for doc in docs:
+            teacher_data = doc.to_dict()
+            name = teacher_data.get('name')
+           
+
+            if name and keyword in name:
+                found = True
+                lab = teacher_data.get('lab', '未知')
+                Result += f"<span style='color:blue; font-weight:bold'>{name}</span> 老師的研究室是在 <b>{lab}</b><br>"
+       
+        if not found:
+            Result += f"找不到姓名包含「{keyword}」的老師。<br>"
+
+    Result += "<br><a href=/>返回首頁</a>"
+    return Result
+
 
 @app.route("/penny")
 def penny():
