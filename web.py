@@ -62,7 +62,7 @@ def spider():
             text = item.text.strip() # 取得文字並去掉空格
             href = item.get("href")  # 取得連結
             # 使用 + 號連接字串，並加上 <br> 讓網頁換行
-            final_output += f"連結：{href}<br>"
+            final_output += f"項目：{text} | 連結：{href}<br>"
             
         # 如果沒抓到東西，給個提示
         if not final_output:
