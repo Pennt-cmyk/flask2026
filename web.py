@@ -33,8 +33,44 @@ def index():
     link += "<br><a href=/read>讀取Firestore資料</a><hr>"
     link += "<br><a href=/read2>讀取Firestore資料(根據姓名關鍵字:楊)</a><hr>"
     link += "<br><a href=/spider>爬取資料</a><hr>"
+    link += "<br><a href=/movie1>爬取即將上映電影</a><hr>"
     return link
 
+@app.route("/movie1")
+def movie1():
+    keyword = request.args.get("keyword", "")
+    
+
+    R = """
+    <form action="/movie1" method="get">
+        <label>請輸入電影關鍵字：</label>
+        <input type="text" name="keyword" value="{}">
+        <button type="submit">搜尋</button>
+    </form>
+    <hr>
+    """.format(keyword) 
+    
+    if keyword:
+        R += "您搜尋的關鍵字是：<b>" + keyword + "</b><br><br>"
+    
+    url = "https://www.atmovies.com.tw/movie/next/"
+    Data = requests.get(url)
+    Data.encoding = "utf-8"
+    sp = BeautifulSoup(Data.text, "html.parser")
+    result = sp.select(".filmListAllX li")
+    
+    for item in result:
+        title = item.find("img").get("alt")
+        
+        if not keyword or keyword in title:
+            introduce = "https://www.atmovies.com.tw" + item.find("a").get("href")
+            img_url = "https://www.atmovies.com.tw" + item.find("img").get("src")
+            
+            R += "<b>" + title + "</b><br>"
+            R += '<a href="' + introduce + '" target="_blank">介紹頁超鏈結</a><br>'
+            R += '<img src="' + img_url + '" width="200"><br><br>'
+            
+    return R
 
 import requests
 from bs4 import BeautifulSoup
