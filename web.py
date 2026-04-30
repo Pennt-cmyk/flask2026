@@ -3,6 +3,7 @@ from datetime import datetime
 
 import os
 import json
+import requests
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -23,7 +24,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    link = "<h1>歡迎進入林珮芹的網站20260409</h1>"
+    link = "<h1>歡迎進入林珮芹的網站</h1>"
     link += "<a href=/mis>課程</a><hr>"
     link += "<a href=/today>現在日期時間</a><hr>"
     link += "<a href=/me>關於我</a><hr>"
@@ -34,7 +35,82 @@ def index():
     link += "<br><a href=/read2>讀取Firestore資料(根據姓名關鍵字:楊)</a><hr>"
     link += "<br><a href=/spider>爬取資料</a><hr>"
     link += "<br><a href=/movie1>爬取即將上映電影</a><hr>"
+    link += "<br><a href=/mo>近期即將上映電影</a><hr>"
+    link += "<br><a href=/searchMovie>搜尋近期即將上映電影</a><hr>"
     return link
+
+@app.route("/searchMovie", methods=["POST", "GET"])
+def searchMovie():
+    if request.method == "POST":
+        MovieTitle = request.form["MovieTitle"]
+        info = ""
+        
+        db = firestore.client()
+        collection_ref = db.collection("電影2B")
+        docs = collection_ref.order_by("showDate").get()
+        
+        for doc in docs:
+            if MovieTitle in doc.to_dict()["title"]:
+                info += "編號：" + doc.id + "<br>"  # 使用 doc.id 取得 Firestore 的文件編號
+                info += "片名：" + doc.to_dict()["title"] + "<br>"
+                info += "海報：<img src='" + doc.to_dict()["picture"] + "' width='200'><br>"
+                info += "介紹頁：<a href='" + doc.to_dict()["hyperlink"] + "'>" + doc.to_dict()["hyperlink"] + "</a><br>"
+                info += "上映日期：" + doc.to_dict()["showDate"] + "<br><br>"
+        
+        if info == "":
+            info = "資料庫中找不到符合此關鍵字的電影。"
+            
+        return info
+    else:
+        return render_template("input.html")
+
+
+
+@app.route("/mo")
+def mo():
+    R = ""
+    db = firestore.client()
+
+
+    import requests
+    from bs4 import BeautifulSoup
+    url = "http://www.atmovies.com.tw/movie/next/"
+    Data = requests.get(url)
+    Data.encoding = "utf-8"
+
+    sp = BeautifulSoup(Data.text, "html.parser")
+    lastUpdate = sp.find(class_="smaller09").text.replace("更新時間：","")
+
+    result=sp.select(".filmListAllX li")
+    info = ""
+    total = 0
+    for item in result:
+      total += 1
+      movie_id = item.find("a").get("href").replace("/movie/","").replace("/","")
+      title = item.find(class_="filmtitle").text
+      picture =  "https://www.atmovies.com.tw" + item.find("img").get("src")
+      hyperlink =  "https://www.atmovies.com.tw" + item.find("a").get("href")
+
+      showDate = item.find(class_="runtime").text[5:15]
+      info += movie_id + "\n" + title + "\n" 
+      info += picture + "\n" + hyperlink + "\n" + showDate +  "\n\n"
+
+
+      doc = {
+          "title": title,
+          "picture": picture,
+          "hyperlink": hyperlink,
+          "showDate": showDate,
+          "lastUpdate": lastUpdate
+      }
+
+      doc_ref = db.collection("電影2B").document(movie_id)
+      doc_ref.set(doc)
+
+    R += "網站最近更新日期:" + lastUpdate + "<br>"
+    R += "總共爬取" + str(total) + "部電影到資料庫"           
+
+    return R
 
 @app.route("/movie1")
 def movie1():
