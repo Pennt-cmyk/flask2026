@@ -54,7 +54,27 @@ def webhook():
     if (action == "rateChoice"):
         rate =  req["queryResult"]["parameters"]["rate"]
         info = "我是林珮芹設計的機器人,您選擇的電影分級是：" + rate
-
+    db = firestore.client()
+        # 注意：這裡要改成你截圖中真實的集合名稱
+    collection_ref = db.collection("本週新片含分級")
+    docs = collection_ref.get()
+        
+    result = ""
+        # 2. 迴圈讀取每一筆電影資料
+    for doc in docs:
+        doc_dict = doc.to_dict()
+            
+            # 先確認字典裡有 'rate' 這個鍵，避免發生 KeyError 報錯
+            # 再檢查使用者要找的分級 (rate) 有沒有包含在資料庫的 'rate' 欄位裡
+        if "rate" in doc_dict and rate in doc_dict["rate"]:
+            result += "片名：" + doc_dict["title"] + "\n"
+            result += "介紹：" + doc_dict["hyperlink"] + "\n\n"
+        
+        # 3. 判斷是否有找到資料
+    if result == "":
+        info += "抱歉，目前資料庫中沒有找到這個分級的電影喔！"
+    else:
+        info += result
     return make_response(jsonify({"fulfillmentText": info}))
 
 
