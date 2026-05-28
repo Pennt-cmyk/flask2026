@@ -106,10 +106,14 @@ def webhook():
             result += "介紹：" + doc_dict["hyperlink"] + "\n\n"
         
         # 3. 判斷是否有找到資料
-    if result == "":
-        info += "抱歉，目前資料庫中沒有找到這個分級的電影喔！"
-    else:
+   # if result == "":
+       # info += "抱歉，目前資料庫中沒有找到這個分級的電影喔！"
+   # else:
         info += result
+        
+    elif (action == "input.unknown"):
+        info = req["queryResult"]["queryText"]
+
     return make_response(jsonify({"fulfillmentText": info}))
 
 
