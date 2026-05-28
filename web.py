@@ -122,7 +122,7 @@ def webhook():
     elif action == "input.unknown":
         instruction_text = (
             "你是一個熱心且知識豐富的專業智慧助理。"
-            "請用繁體中文、自然且完整的句子來回答使用者的問題，長度控制在 50 到 100 字左右。"         
+            "請用繁體中文、自然且完整的句子來回答使用者的問題，長度控制在 100 字左右。"         
         )
 
         ai_config = types.GenerateContentConfig(
