@@ -1,8 +1,5 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, make_response, jsonify
 from datetime import datetime
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 import os
 import json
@@ -24,8 +21,6 @@ firebase_admin.initialize_app(cred)
 
 
 app = Flask(__name__)
-line_bot_api = LineBotApi('Tu14RHAD512d5pjRO3/88iHi1/LPerKPnnFW+CuQqtReNpiXhN9rPANaamAJmDLBc2ap3h3QS5uId2UADzY+DQ1JNiAuKe/E8G4bTb8irlQBUcQ90NOFgb35rnKd4S2LmzRYtrmnmBJ/naPRHPw63QdB04t89/1O/w1cDnyilFU=')
-handler = WebhookHandler('d9ac686c00ecef9aa09dedd0f9e5b776')
 
 @app.route("/")
 def index():
@@ -42,63 +37,195 @@ def index():
     link += "<br><a href=/movie1>爬取即將上映電影</a><hr>"
     link += "<br><a href=/mo>近期即將上映電影</a><hr>"
     link += "<br><a href=/searchMovie>搜尋近期即將上映電影</a><hr>"
+    link += "<br><a href=/road>台中市十大肇事路口</a><hr>"
+    link += "<br><a href=/weather>天氣</a><hr>"
+    link += "<br><a href=/rate>本週新片</a><hr>"
     return link
 
-# 接收 LINE 訊息的路由
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-    body = request.get_data(as_text=True)
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-    return 'OK'
 
-# 處理 LINE 對話邏輯：從 Firestore 抓資料
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    user_message = event.message.text  # 讀取使用者傳來的文字 (例如："限制級")
-    
-    # 如果使用者點擊圖文選單傳送「我要看電影」
-    if user_message == "我要看電影":
-        reply_text = "您要查詢哪種分級的電影？ (例如：限制級、輔導級、普遍級)"
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    # build a request object
+    req = request.get_json(force=True)
+    # fetch queryResult from json
+    action =  req["queryResult"]["action"]
+    #msg =  req["queryResult"]["queryText"]
+    #info = "我是林珮芹設計的機器人,動作：" + action + "； 查詢內容：" + msg
+    if (action == "rateChoice"):
+        rate =  req["queryResult"]["parameters"]["rate"]
+        info = "我是林珮芹設計的機器人,您選擇的電影分級是：" + rate
+    db = firestore.client()
+        # 注意：這裡要改成你截圖中真實的集合名稱
+    collection_ref = db.collection("本週新片含分級")
+    docs = collection_ref.get()
         
-    # 如果使用者輸入了包含「級」的字，我們就去資料庫找
-    elif "級" in user_message:
-        db = firestore.client()
-        collection_ref = db.collection("本週新片含分級")  # 這是你截圖裡用的集合名稱
-        docs = collection_ref.get()
+    result = ""
+        # 2. 迴圈讀取每一筆電影資料
+    for doc in docs:
+        doc_dict = doc.to_dict()
+            
+            # 先確認字典裡有 'rate' 這個鍵，避免發生 KeyError 報錯
+            # 再檢查使用者要找的分級 (rate) 有沒有包含在資料庫的 'rate' 欄位裡
+        if "rate" in doc_dict and rate in doc_dict["rate"]:
+            result += "片名：" + doc_dict["title"] + "\n"
+            result += "介紹：" + doc_dict["hyperlink"] + "\n\n"
         
-        info = ""
-        for doc in docs:
-            doc_data = doc.to_dict()
-            
-            # 【重要】這裡假設你資料庫裡記錄分級的欄位叫做 "rate"
-            # 如果你的欄位名稱不同 (例如叫 "分級" 或 "class")，請把下面的 "rate" 改掉
-            movie_rate = doc_data.get("rate", "") 
-            
-            # 如果使用者輸入的字 (例如 限制級) 有在這個電影的分級裡面
-            if user_message in movie_rate:
-                title = doc_data.get("title", "未知片名")
-                hyperlink = doc_data.get("hyperlink", "無連結")
-                
-                # LINE 的換行是 \n，不是網頁的 <br>
-                info += f"片名：{title}\n介紹：{hyperlink}\n\n"
-        
-        if info == "":
-            reply_text = f"抱歉，資料庫裡面目前沒有 {user_message} 的電影喔！"
-        else:
-            reply_text = f"我是林珮芹開發的電影聊天機器人，您選擇的電影分級是 {user_message}，相關電影：\n\n{info}"
-            
+        # 3. 判斷是否有找到資料
+    if result == "":
+        info += "抱歉，目前資料庫中沒有找到這個分級的電影喔！"
     else:
-        reply_text = "我不太懂您的意思，請點擊選單或輸入電影分級。"
+        info += result
+    return make_response(jsonify({"fulfillmentText": info}))
 
-    # 將組合好的文字回傳給使用者
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=reply_text)
-    )
+
+@app.route("/rate")
+def rate():
+    #本週新片
+    url = "https://www.atmovies.com.tw/movie/new/"
+    Data = requests.get(url)
+    Data.encoding = "utf-8"
+    sp = BeautifulSoup(Data.text, "html.parser")
+    lastUpdate = sp.find(class_="smaller09").text[5:]
+    print(lastUpdate)
+    print()
+
+    result=sp.select(".filmList")
+
+    for x in result:
+        title = x.find("a").text
+        introduce = x.find("p").text
+
+        movie_id = x.find("a").get("href").replace("/", "").replace("movie", "")
+        hyperlink = "http://www.atmovies.com.tw/movie/" + movie_id
+        picture = "https://www.atmovies.com.tw/photo101/" + movie_id + "/pm_" + movie_id + ".jpg"
+
+        r = x.find(class_="runtime").find("img")
+        rate = ""
+        if r != None:
+            rr = r.get("src").replace("/images/cer_", "").replace(".gif", "")
+            if rr == "G":
+                rate = "普遍級"
+            elif rr == "P":
+                rate = "保護級"
+            elif rr == "F2":
+                rate = "輔12級"
+            elif rr == "F5":
+                rate = "輔15級"
+            else:
+                rate = "限制級"
+
+        t = x.find(class_="runtime").text
+
+        t1 = t.find("片長")
+        t2 = t.find("分")
+        showLength = t[t1+3:t2]
+
+        t1 = t.find("上映日期")
+        t2 = t.find("上映廳數")
+        showDate = t[t1+5:t2-8]
+
+        doc = {
+            "title": title,
+            "introduce": introduce,
+            "picture": picture,
+            "hyperlink": hyperlink,
+            "showDate": showDate,
+            "showLength": int(showLength),
+            "rate": rate,
+            "lastUpdate": lastUpdate
+        }
+
+        db = firestore.client()
+        doc_ref = db.collection("本週新片含分級").document(movie_id)
+        doc_ref.set(doc)
+    return "本週新片已爬蟲及存檔完畢，網站最近更新日期為：" + lastUpdate
+
+
+@app.route("/weather")
+def weather():
+    # 1. 取得使用者在網頁網址或表單輸入的縣市
+    # 這取代了原本的 city = input("請輸入縣市：")
+    city = request.args.get("city")
+
+    # 2. 如果使用者還沒有輸入，就先顯示一個網頁表單給他填寫
+    if not city:
+        return '''
+            <h2>氣象查詢系統</h2>
+            <form action="/weather" method="GET">
+                請輸入縣市 (例如：臺中市)：<input type="text" name="city" required>
+                <input type="submit" value="查詢">
+            </form>
+        '''
+
+    # 3. 處理字串 (台換成臺)
+    city_formatted = city.replace("台", "臺")
+    
+    # 4. 組合 API 網址 (已修正你原本程式碼中重複組合的問題)
+    token = "rdec-key-123-45678-011121314"
+    url = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-C0032-001?Authorization={token}&format=JSON&locationName={city_formatted}"
+    
+    # 為了避免你之前一直遇到的 10054 連線被阻擋問題，務必加上偽裝標頭
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'
+    }
+
+    try:
+        # 發送請求，記得加上 verify=False
+        Data = requests.get(url, headers=headers, verify=False, timeout=10)
+        
+        if Data.status_code == 200:
+            json_data = json.loads(Data.text)
+            
+            # 依照你原本的邏輯，挖出天氣與降雨機率
+            # 這裡包在 try 裡面是為了避免使用者輸入錯的縣市名稱（例如：台中縣）導致 JSON 找不到該路徑
+            try:
+                location_data = json_data["records"]["location"][0]
+                weather_status = location_data["weatherElement"][0]["time"][0]["parameter"]["parameterName"]
+                rain_prob = location_data["weatherElement"][1]["time"][0]["parameter"]["parameterName"]
+                
+                # 回傳結果加上簡單的 HTML 排版
+                return f'''
+                    <h2>查詢結果：{city_formatted}</h2>
+                    <p>目前天氣：{weather_status}</p>
+                    <p>降雨機率：{rain_prob}%</p>
+                    <br><br>
+                    <a href="/weather">返回重新查詢</a>
+                '''
+            except IndexError:
+                return f"找不到「{city}」的資料，請確認縣市名稱是否輸入正確（如：臺中市）。<br><a href='/weather'>返回重新查詢</a>"
+                
+        else:
+            return f"無法取得資料，錯誤代碼：{Data.status_code}"
+
+    except Exception as e:
+        return f"連線發生錯誤：{e}"
+
+
+@app.route("/road")
+def road():
+    R = "<h1>台中市十大肇事路口(113年10月)作者:林珮芹</h1><br>"
+    url = "https://datacenter.taichung.gov.tw/swagger/OpenData/a1b899c0-511f-4e3d-b22b-814982a97e41"
+    
+    # 關鍵：加上這段偽裝標頭，讓伺服器以為你是瀏覽器
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    try:
+        # 同時包含 headers 和 verify=False
+        Data = requests.get(url, headers=headers, verify=False, timeout=10)
+        
+        if Data.status_code == 200:
+            JsonData = json.loads(Data.text)
+            for item in JsonData:
+                R += f"{item['路口名稱']}，原因：{item['主要肇因']}: 發生 {item['總件數']}件<br>"
+        else:
+            R += f"無法取得資料，錯誤代碼：{Data.status_code}"
+            
+    except Exception as e:
+        R += f"連線發生錯誤：{e}"
+        
+    return R
 
 
 @app.route("/searchMovie", methods=["POST", "GET"])
@@ -259,7 +386,7 @@ def read1():
     for doc in docs:
         teacher = doc.to_dict()
         if keyword in teacher["name"]:         
-            Result += str(teacher) + "<br>"  
+            Result += str( teacher) + "<br>"  
     return Result
 
 
