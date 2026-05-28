@@ -122,7 +122,7 @@ def webhook():
     elif action == "input.unknown":
         instruction_text = (
             "你是一個熱心且知識豐富的專業智慧助理。"
-            "請用繁體中文、自然且完整的句子回答，段落分明。請注意：絕對不要使用 Markdown 語法（例如 ** 或 * 符號），請直接輸出純文字。"         
+            "請用繁體中文、自然且完整的句子回答，段落分明。請注意：絕對不要使用 Markdown 語法（例如 ** 或 * 符號），請直接輸出100字的純文字。"         
         )
 
         ai_config = types.GenerateContentConfig(
@@ -139,7 +139,7 @@ def webhook():
             )
 
             if response.text:
-                info = response.text
+                info = response.text.replace("\n", " ")
             else:
                 info = "抱歉，我現在無法生成回應，請稍後再試。"
         
