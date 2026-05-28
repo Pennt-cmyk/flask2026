@@ -46,6 +46,7 @@ def index():
     link += "<br><a href=/weather>天氣</a><hr>"
     link += "<br><a href=/rate>本週新片</a><hr>"
     link += "<br><a href=/ask>詢問</a><hr>"
+    link += "<br><a href=/messenger>詢問AI小視窗</a><hr>"
     return link
 
 @app.route('/ask', methods=['GET', 'POST']) 
@@ -326,7 +327,9 @@ def searchMovie():
     else:
         return render_template("input.html")
 
-
+@app.route("/messenger")
+def messenger():
+    return render_template("messenger.html")
 
 @app.route("/mo")
 def mo():
